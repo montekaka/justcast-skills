@@ -1,0 +1,21 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "justcast",
+  "version": "0.1.0",
+  "description": "JustCast tools for podcast and audio editing.",
+  "author": {
+    "name": "JustCast"
+  },
+  "extensions": {
+    "com.openai": {
+      "interface": {
+        "displayName": "JustCast",
+        "shortDescription": "Podcast and audio editing tools",
+        "longDescription": "Analyze podcast volume, recommend a level, and create verified MP3 copies with Volume Control. Includes setup and saved preferences.",
+        "developerName": "JustCast",
+        "category": "Productivity"
+      }
+    }
+  },
+  "license": "MIT"
+}

@@ -1,0 +1,26 @@
+# Local files and editor state
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.log
+__pycache__/
+
+# Credentials and user preferences
+.env
+.env.*
+!.env.example
+justcast-volume-control.json
+
+# Working files and generated audio
+work/
+outputs/
+*.mp3
+*.wav
+*.flac
+*.m4a
+*.aac
+*.aiff
+*.aif
+*.ogg
+*.opus

@@ -1,0 +1,20 @@
+{
+  "name": "justcast",
+  "interface": {
+    "displayName": "JustCast"
+  },
+  "plugins": [
+    {
+      "name": "justcast",
+      "source": {
+        "source": "local",
+        "path": "./plugins/justcast"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    }
+  ]
+}

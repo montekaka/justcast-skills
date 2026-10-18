@@ -1,0 +1,3 @@
+interface:
+  display_name: "JustCast Volume Control"
+  short_description: "Measure and normalize podcast audio with FFmpeg"
