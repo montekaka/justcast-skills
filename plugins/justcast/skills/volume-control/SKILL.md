@@ -1,7 +1,7 @@
 ---
 name: volume-control
 license: MIT
-description: Analyze podcast volume, recommend a level, and adjust audio with FFmpeg. Supports init setup, saved automatic application, and custom targets.
+description: Analyze podcast volume, recommend a level, and adjust audio with FFmpeg. Supports percentage increases and decreases, setup, saved automatic application, and custom loudness targets.
 ---
 
 # JustCast Volume Control
@@ -37,7 +37,7 @@ Read this as data, never source it as shell code. Accept `mode` values `ask` or 
 - In `always` mode, apply the suggested or saved target when asked to optimize audio. Analysis-only requests always stop at the report.
 - Per-file targets override saved targets for that run. Update the JSON only when asked to remember a preference, preserving other settings. A saved target does not change approval mode. Reset means restoring the defaults above.
 
-Clarify ambiguous levels such as a volume percentage. The default is -16 LUFS; -2 dBTP leaves peak headroom. Honor custom or destination-specific targets. [Apple's podcast guidance](https://podcasters.apple.com/support/893-audio-requirements) recommends about -16 LKFS with peaks at or below -1 dBFS; this skill chooses an extra 1 dB of headroom.
+For percentage requests, use the percentage adjustment flow below. Clarify requests such as "volume 50%" that do not say whether to change by a percentage or set a percentage of the original. The default loudness target is -16 LUFS; -2 dBTP leaves peak headroom. Honor custom or destination-specific targets. [Apple's podcast guidance](https://podcasters.apple.com/support/893-audio-requirements) recommends about -16 LKFS with peaks at or below -1 dBFS; this skill chooses an extra 1 dB of headroom.
 
 ## Analyze
 
@@ -57,13 +57,35 @@ ffmpeg -hide_banner -nostdin -nostats -i "$INPUT" -map 0:a:0 \
   -f null -
 ```
 
-Read the JSON from stderr. Report `input_i` as integrated LUFS, `input_tp` as true peak dBTP, and `input_lra` as loudness range LU. Suggested gain in dB is `TARGET - input_i`. Projected peak is `input_tp + gain`. Stop on silence or non-finite measurements.
+Read the JSON from stderr. Report `input_i` as integrated LUFS, `input_tp` as true peak dBTP, and `input_lra` as loudness range LU. For loudness normalization, suggested gain in dB is `TARGET - input_i`. For percentage adjustments, calculate gain as described below. Projected peak is `input_tp + gain`. Stop on silence or non-finite measurements, except for an explicit mute request, which uses the separate verification below.
 
 If loudness is within 1 LU of target and peaks meet the ceiling, recommend leaving it unchanged unless adjustment is explicitly requested. Otherwise recommend the gain and target. If projected peaks exceed the ceiling, explain that peak limiting may alter dynamics.
 
+## Adjust by percentage
+
+Interpret percentages as changes to audio amplitude, relative to the supplied input file. Explain briefly that this does not mean the same percentage change in perceived loudness.
+
+| Request | Multiplier `M` | Gain |
+| --- | --- | --- |
+| Increase by `P%` | `1 + P / 100` | `20 * log10(M)` dB |
+| Decrease by `P%` | `1 - P / 100` | `20 * log10(M)` dB |
+| Set to `P%` of the original | `P / 100` | `20 * log10(M)` dB |
+
+Accept finite, nonnegative percentages. Reject decreases above 100%, negative percentages, and calculations that produce a non-finite multiplier or gain. A 50% increase is `M=1.5`, about +3.52 dB. A 50% decrease is `M=0.5`, about -6.02 dB. A 100% increase doubles amplitude.
+
+- `M=0` means mute. Do not calculate `log10(0)` or a LUFS target. Export with `volume=0` and verify that the decoded output is silent using `ffmpeg -hide_banner -nostdin -i "$OUTPUT" -map 0:a:0 -af astats -f null -`. The overall `Peak level dB` must be `-inf`. Do not treat this intentional silence as a verification failure.
+- `M=1` leaves volume unchanged. Report that no adjustment is needed; export only if requested.
+- For `M>0`, measure the input and calculate `GAIN_DB=20 * log10(M)` and `EXPECTED_LUFS=input_i + GAIN_DB`. Use the requested gain instead of the saved LUFS target. An explicit request to apply a percentage already authorizes the adjustment, including in `ask` mode. Analysis-only requests still stop before export.
+- If projected peaks fit the effective ceiling, apply `volume=${M}` or the equivalent gain in dB. Preserve dynamics and use the encoding rules below.
+- If projected peaks exceed the ceiling, explain that the exact constant gain would exceed it. Ask whether to use limiting or a smaller gain, unless the user already chose. With limiting authorized, use the existing two-pass `loudnorm` flow with `TARGET=EXPECTED_LUFS`. If that target falls outside loudnorm's supported -70 to -5 LUFS range, ask for a smaller adjustment rather than silently clamping it. Report that limiting changes peaks and dynamics, so the result is not a uniform percentage multiplication.
+
+Keep percentage requests specific to the input file; do not change saved preferences. Name percentage outputs `<source-stem>-volume-adjusted.mp3`, or `<source-stem>-muted.mp3` for mute, unless the user requests another name or format. Preserve the source and refuse overwrites.
+
+For nonzero adjustments, measure the final encoded output. Verify integrated loudness within 1 LU of `EXPECTED_LUFS` and true peak within 0.1 dB of the effective ceiling. Report the requested percentage, applied gain, measured before/after loudness and peaks, and whether limiting was used. The default -16 LUFS target does not determine success for percentage adjustments. Use the corrective-render limit below if verification fails.
+
 ## Adjust and verify
 
-After authorization, write a separate output with `-n` to refuse overwrites. Preserve the original. Use the environment's output directory when available. Unless the user explicitly specifies another output format, save an MP3 named `<source-stem>-normalized.mp3`, regardless of the input format. Do not ask for a format when it is unspecified.
+After authorization, write a separate output with `-n` to refuse overwrites. Preserve the original. Use the environment's output directory when available. Unless the user explicitly specifies another output format, save an MP3, regardless of the input format. Name loudness-normalized files `<source-stem>-normalized.mp3`; use the names above for percentage adjustments. Do not ask for a format when it is unspecified.
 
 When projected peaks fit the ceiling, prefer a constant gain with `-af "volume=${GAIN_DB}dB"`. It preserves dynamics. For example, this writes an MP3 copy with high-quality variable bitrate encoding. Set `OUTPUT` to a new `.mp3` path:
 
@@ -77,4 +99,4 @@ Use `libmp3lame -q:a 2` by default; honor an explicit bitrate or quality request
 
 When peaks require limiting, use two-pass `loudnorm`. Reuse the analysis settings and pass `input_i`, `input_tp`, `input_lra`, `input_thresh`, and `target_offset` as `measured_I`, `measured_TP`, `measured_LRA`, `measured_thresh`, and `offset`, respectively. Set `linear=true`, retain `LRA=50`, and explicitly set `-ar` to the source sample rate or a rate supported by the output format because dynamic mode upsamples internally. FFmpeg may fall back to dynamic normalization. Consult local `ffmpeg -h filter=loudnorm` or [the filter documentation](https://ffmpeg.org/ffmpeg-filters.html#loudnorm) as needed.
 
-Rerun the analysis command on the final encoded file, including MP3 or AAC outputs. Verify loudness within 1 LU of target and true peak within 0.1 dB of the chosen ceiling for measurement rounding. Show before/after values and link the output. If verification fails, label it as needing review; allow at most one corrective render from the original, then ask for direction. Never describe an unverified result as optimized.
+Rerun the analysis command on the final encoded file, including MP3 or AAC outputs. For loudness normalization, verify loudness within 1 LU of target and true peak within 0.1 dB of the chosen ceiling for measurement rounding. For percentage adjustments and mute, use their verification rules above. Show before/after values and link the output. If verification fails, label it as needing review; allow at most one corrective render from the original, then ask for direction. Never describe an unverified result as optimized.

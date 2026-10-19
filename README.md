@@ -6,7 +6,7 @@ Podcast and audio editing skills for Codex, packaged as the **JustCast** plugin.
 
 | Skill | What it does |
 | --- | --- |
-| `justcast:volume-control` | Measures loudness, recommends an adjustment, and creates a verified audio copy with FFmpeg. |
+| `justcast:volume-control` | Measures loudness, adjusts volume by percentage or loudness target, and creates a verified audio copy with FFmpeg. |
 
 Volume Control preserves the original recording and exports MP3 by default. It asks before applying changes unless you enable automatic application. You can also choose a custom loudness target.
 
@@ -98,6 +98,20 @@ Apply a specific target to a separate copy:
 ```text
 $justcast:volume-control normalize "/path/to/episode.mp3" to -16 LUFS
 ```
+
+Increase or decrease volume by a percentage:
+
+```text
+$justcast:volume-control increase the volume of "/path/to/episode.mp3" by 50%
+```
+
+```text
+$justcast:volume-control decrease the volume of "/path/to/episode.mp3" by 25%
+```
+
+Percentages refer to audio amplitude. Increasing by 50% multiplies amplitude by 1.5, about +3.52 dB; decreasing by 50% multiplies it by 0.5, about -6.02 dB. These do not describe an equal percentage change in perceived loudness. You can also request "set volume to 50% of the original." Decreasing by 100% mutes the output; decreases above 100% are rejected.
+
+The skill measures peaks before applying the adjustment. If the requested gain exceeds the peak ceiling, it asks whether to use limiting or a smaller gain. Percentage adjustments use the requested gain instead of the saved loudness target and leave saved preferences unchanged. Output names end in `-volume-adjusted.mp3`, or `-muted.mp3` for mute.
 
 Change a saved preference:
 
