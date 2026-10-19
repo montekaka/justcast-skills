@@ -20,23 +20,62 @@ The skill runs FFmpeg directly. It does not require a bundled server or API key.
 
 ## Install
 
-Clone or download this repository, then run these commands from its root:
+JustCast can be installed directly from GitHub before it is listed in the public plugin directory. These instructions use the [supported Codex plugin commands](https://learn.chatgpt.com/docs/cli/reference#codex-plugin).
+
+### Install with one command
+
+On macOS or Linux, install [Codex CLI](https://learn.chatgpt.com/docs/cli) and Git, then run:
 
 ```sh
-codex plugin marketplace add .
+curl -fsSL https://raw.githubusercontent.com/montekaka/justcast-skills/main/get.sh | bash
+```
+
+The script registers this repository as the `justcast` marketplace and installs `justcast@justcast` through Codex. Codex manages the downloaded files. The script checks for the required commands and stops if installation fails. It does not install FFmpeg.
+
+Restart your desktop app and start a new chat, then send:
+
+```text
+$justcast:volume-control init
+```
+
+To review the installer before running it:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/montekaka/justcast-skills/main/get.sh -o get.sh
+cat get.sh
+bash get.sh
+```
+
+### Install manually
+
+Run the same commands yourself:
+
+```sh
+codex plugin marketplace add https://github.com/montekaka/justcast-skills.git --ref main
 codex plugin add justcast@justcast
 ```
 
-Keep the repository folder in place because it is the local plugin source. Restart Codex if the skill does not appear in a new chat.
+For a local development copy, clone this repository and run `codex plugin marketplace add .` from its root, followed by `codex plugin add justcast@justcast`. Keep that folder in place because it is the local plugin source.
 
-After this repository is hosted on GitHub, you can register its URL instead of a local folder:
+### Update or uninstall
+
+To fetch changes from GitHub and reinstall the plugin:
 
 ```sh
-codex plugin marketplace add https://github.com/OWNER/REPOSITORY.git
+codex plugin marketplace upgrade justcast
 codex plugin add justcast@justcast
 ```
 
-Replace `OWNER/REPOSITORY` with the actual GitHub owner and repository name. See the [official plugin packaging documentation](https://developers.openai.com/plugins/build/plugins) for supported installation surfaces.
+Restart your desktop app and start a new chat after updating.
+
+To uninstall the plugin and remove its marketplace source:
+
+```sh
+codex plugin remove justcast@justcast
+codex plugin marketplace remove justcast
+```
+
+Your saved Volume Control preferences and audio files remain in place.
 
 ## Use Volume Control
 
@@ -94,6 +133,7 @@ The default name is `<source-stem>-normalized.mp3`. Existing files are not overw
 ## Repository layout
 
 ```text
+get.sh
 .agents/plugins/marketplace.json
 plugins/justcast/
   plugin.json
